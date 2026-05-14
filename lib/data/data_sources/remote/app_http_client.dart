@@ -3,6 +3,7 @@ import 'package:get/get.dart' hide Response;
 import 'package:weather_app1/core/constants/app_env.dart';
 import 'package:weather_app1/core/logger/app_logger.dart';
 import 'package:weather_app1/core/network/app_api_loading_controller.dart';
+import 'package:weather_app1/core/network/app_http_extras.dart';
 import 'package:weather_app1/core/session/session_controller.dart';
 
 /// Dio client for remote APIs: timeouts, headers, session token, loading overlay,
@@ -54,12 +55,15 @@ class AppHttpClient {
 }
 
 final class _LoadingInterceptor extends Interceptor {
+  bool _quiet(RequestOptions o) =>
+      o.extra[AppHttpExtras.quietNetwork] == true;
+
   @override
   void onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) {
-    if (Get.isRegistered<AppApiLoadingController>()) {
+    if (!_quiet(options) && Get.isRegistered<AppApiLoadingController>()) {
       Get.find<AppApiLoadingController>().begin();
     }
     handler.next(options);
@@ -70,17 +74,20 @@ final class _LoadingInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) {
-    _end();
+    _end(response.requestOptions);
     handler.next(response);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    _end();
+    _end(err.requestOptions);
     handler.next(err);
   }
 
-  void _end() {
+  void _end(RequestOptions options) {
+    if (_quiet(options)) {
+      return;
+    }
     if (Get.isRegistered<AppApiLoadingController>()) {
       Get.find<AppApiLoadingController>().end();
     }

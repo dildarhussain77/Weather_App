@@ -24,7 +24,6 @@ abstract final class AppLogger {
   static const String _topRight = '┐';
   static const String _bottomLeft = '└';
   static const String _bottomRight = '┘';
-  static const String _cross = '├';
   static const String _leftT = '├';
   static const String _rightT = '┤';
 
@@ -103,12 +102,12 @@ abstract final class AppLogger {
   }) {
     final StringBuffer box = StringBuffer();
     final String borderColor = isError ? '\x1B[31m' : '\x1B[36m';
-    final String resetColor = '\x1B[0m';
+    const String resetColor = '\x1B[0m';
     final String titleColor = isError ? '\x1B[31m' : '\x1B[32m';
 
     // Top border
     box.writeln('$borderColor$_topLeft$_horizontalLine$_horizontalLine '
-        '$icon $_horizontalLine$_horizontalLine $title '
+        '$icon $_horizontalLine$_horizontalLine $titleColor$title$resetColor$borderColor '
         '${status != null ? "($status)" : ""} '
         '${_horizontalLine * 40}$_topRight$resetColor');
 
@@ -123,7 +122,7 @@ abstract final class AppLogger {
         for (int j = 0; j < wrappedLines.length; j++) {
           final String wrappedLine = wrappedLines[j];
           final String linePrefix = (j == 0) ? prefix : _verticalLine;
-          box.writeln('$borderColor$linePrefix $resetColor$wrappedLine${borderColor} $_rightT$resetColor');
+          box.writeln('$borderColor$linePrefix $resetColor$wrappedLine$borderColor $_rightT$resetColor');
         }
       }
     }
@@ -134,15 +133,16 @@ abstract final class AppLogger {
         final String line = wrappedContent[i];
         final bool isLast = i == wrappedContent.length - 1;
         final String prefix = isLast ? _bottomLeft : _leftT;
-        box.writeln('$borderColor$prefix $resetColor$line${borderColor} $_rightT$resetColor');
+        box.writeln('$borderColor$prefix $resetColor$line$borderColor $_rightT$resetColor');
       }
     }
 
     // If no lines or content, just close the box
     if ((lines == null || lines.isEmpty) && content == null) {
-      box.writeln('$borderColor$_bottomLeft$_horizontalLine * 60$_bottomRight$resetColor');
+      box.writeln('$borderColor$_bottomLeft${_horizontalLine * 60}$_bottomRight$resetColor');
     }
 
+    // ignore: avoid_print
     print(box.toString());
   }
 
@@ -220,7 +220,7 @@ abstract final class AppLogger {
     content.writeln('├─ METHOD: ${ro.method}');
 
     // Response Headers
-    if (response.headers != null && response.headers.map.isNotEmpty) {
+    if (response.headers.map.isNotEmpty) {
       content.writeln('├─ RESPONSE HEADERS:');
       response.headers.map.forEach((key, values) {
         content.writeln('│  • $key: ${values.join(', ')}');

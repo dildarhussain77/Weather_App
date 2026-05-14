@@ -3,6 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Keys for [LocalPrefsService].
 abstract final class StorageKeys {
   static const String lastCity = 'last_city';
+
+  /// JSON array of recent city picks (name, country, lat, lon, state).
+  static const String citySearchHistory = 'city_search_history_v1';
 }
 
 /// Thin wrapper over [SharedPreferences].

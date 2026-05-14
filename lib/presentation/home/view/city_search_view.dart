@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:weather_app1/core/constants/app_constants.dart';
 import 'package:weather_app1/domain/repositories/weather_repository.dart';
+import 'package:weather_app1/core/utils/city_search_utils.dart';
 import 'package:weather_app1/presentation/home/controller/city_search_controller.dart';
+import 'package:weather_app1/presentation/home/widgets/city_suggestion_tile.dart';
 import 'package:weather_app1/presentation/home/widgets/weather_result_card.dart';
 
 class CitySearchView extends GetView<CitySearchController> {
@@ -22,6 +25,7 @@ class CitySearchView extends GetView<CitySearchController> {
             controller: controller.textFieldController,
             style: const TextStyle(color: Colors.white, fontSize: 18),
             cursorColor: Colors.white,
+            textInputAction: TextInputAction.search,
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: 'Search city',
@@ -47,37 +51,51 @@ class CitySearchView extends GetView<CitySearchController> {
             ),
           ),
           child: Obx(() {
-            final bool loading = controller.isLoading.value;
             final WeatherForecast? result = controller.resultWeather.value;
-
-            if (loading &&
-                controller.suggestions.isEmpty &&
-                result == null &&
-                controller.query.value.length >= 2) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              );
-            }
-
             if (result != null) {
-              return SingleChildScrollView(
-                child: WeatherResultCard(forecast: result),
+              return Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  SingleChildScrollView(
+                    child: WeatherResultCard(forecast: result),
+                  ),
+                  if (controller.loadingWeather.value)
+                    ColoredBox(
+                      color: Colors.black26,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white.withValues(alpha: 0.95),
+                        ),
+                      ),
+                    ),
+                ],
               );
             }
 
-            return Column(
-              children: <Widget>[
-                if (loading)
-                  LinearProgressIndicator(
-                    backgroundColor: Colors.blue.shade300,
-                    valueColor:
-                        const AlwaysStoppedAnimation<Color>(Colors.white),
+            return Obx(() {
+              controller.historyEntries.length;
+              controller.suggestionsError.value;
+              controller.loadingSuggestions.value;
+              controller.suggestions.length;
+              controller.query.value;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  _HistoryStrip(controller: controller),
+                  _ErrorBanner(controller: controller),
+                  if (controller.loadingSuggestions.value)
+                    LinearProgressIndicator(
+                      backgroundColor: Colors.blue.shade300,
+                      valueColor:
+                          const AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  Expanded(
+                    child: _SuggestionArea(controller: controller),
                   ),
-                const Expanded(child: _CitySuggestionsList()),
-              ],
-            );
+                ],
+              );
+            });
           }),
         ),
       ),
@@ -85,54 +103,148 @@ class CitySearchView extends GetView<CitySearchController> {
   }
 }
 
-class _CitySuggestionsList extends GetView<CitySearchController> {
-  const _CitySuggestionsList();
+class _HistoryStrip extends StatelessWidget {
+  const _HistoryStrip({required this.controller});
+
+  final CitySearchController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final CitySearchController c = controller;
-      if (c.isLoading.value && c.suggestions.isEmpty) {
-        return const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          ),
-        );
-      }
-
-      if (c.suggestions.isNotEmpty) {
-        return ListView.builder(
-          itemCount: c.suggestions.length,
-          itemBuilder: (BuildContext context, int index) {
-            final CitySuggestion city = c.suggestions[index];
-            return ListTile(
-              title: Text(
-                city.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+    if (controller.historyEntries.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Material(
+      color: Colors.transparent,
+      child: SizedBox(
+        height: 52,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          itemCount: controller.historyEntries.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (BuildContext context, int i) {
+            final entry = controller.historyEntries[i];
+            return ActionChip(
+              backgroundColor: Colors.white24,
+              label: Text(
+                entry.displayLabel,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontSize: 13),
               ),
-              subtitle: Text(
-                city.country,
-                style: const TextStyle(color: Colors.white70),
-              ),
-              leading: const Icon(Icons.location_city, color: Colors.white),
-              onTap: () => c.selectCity(city.name),
+              onPressed: () => controller.selectHistoryEntry(entry),
             );
           },
-        );
-      }
+        ),
+      ),
+    );
+  }
+}
 
-      final String q = c.query.value;
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.controller});
+
+  final CitySearchController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final String? err = controller.suggestionsError.value;
+    if (err == null) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.red.shade900.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: <Widget>[
+              const Icon(Icons.error_outline, color: Colors.white, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  err,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+              TextButton(
+                onPressed: controller.retrySuggestions,
+                child: const Text(
+                  'Retry',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionArea extends StatelessWidget {
+  const _SuggestionArea({required this.controller});
+
+  final CitySearchController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final String q = controller.query.value;
+    final String norm = SearchQueryNormalizer.normalize(q);
+
+    if (norm.length < AppConstants.minCityQueryLength) {
       return Center(
-        child: Text(
-          q.isEmpty
-              ? 'Please enter a city name'
-              : 'No cities found matching "$q"',
-          style: const TextStyle(color: Colors.white70),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            controller.historyEntries.isEmpty
+                ? 'Enter at least ${AppConstants.minCityQueryLength} characters to search, or pick a recent city above.'
+                : 'Enter at least ${AppConstants.minCityQueryLength} characters to search.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 15),
+          ),
         ),
       );
-    });
+    }
+
+    if (controller.loadingSuggestions.value && controller.suggestions.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        ),
+      );
+    }
+
+    if (controller.suggestions.isNotEmpty) {
+      return ListView.separated(
+        itemCount: controller.suggestions.length,
+        separatorBuilder: (_, __) => Divider(
+          height: 1,
+          color: Colors.white.withValues(alpha: 0.2),
+        ),
+        itemBuilder: (BuildContext context, int index) {
+          final CitySuggestion city = controller.suggestions[index];
+          return CitySuggestionTile(
+            suggestion: city,
+            onTap: () => controller.selectSuggestion(city),
+          );
+        },
+      );
+    }
+
+    return Center(
+      child: Text(
+        controller.suggestionsError.value != null
+            ? 'Could not load suggestions.'
+            : 'No cities found matching "$q".',
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white70),
+      ),
+    );
   }
 }

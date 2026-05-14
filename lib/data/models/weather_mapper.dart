@@ -24,31 +24,36 @@ class WeatherMapper {
     );
   }
 
-  static List<CitySuggestion> citySuggestionsFromFindResponse(
-    Map<String, dynamic> data,
+  /// Parses [Geo 1.0 Direct](https://openweathermap.org/api/geocoding-api) JSON array.
+  static List<CitySuggestion> citySuggestionsFromGeoDirectList(
+    List<dynamic> raw,
   ) {
-    final List<dynamic>? list = data['list'] as List?;
-    if (list == null) {
-      return <CitySuggestion>[];
-    }
-
-    final List<CitySuggestion> suggestions = list.map((dynamic city) {
-      final Map<String, dynamic> c = Map<String, dynamic>.from(city as Map);
-      final Map<String, dynamic> sys =
-          Map<String, dynamic>.from(c['sys'] as Map? ?? {});
-      final Map<String, dynamic> coord =
-          Map<String, dynamic>.from(c['coord'] as Map? ?? {});
-      return CitySuggestion(
-        name: c['name']?.toString() ?? '',
-        country: sys['country']?.toString() ?? '',
-        lat: (coord['lat'] as num?)?.toDouble() ?? 0,
-        lon: (coord['lon'] as num?)?.toDouble() ?? 0,
-        population: (c['population'] as num?)?.toInt() ?? 0,
+    final Map<String, CitySuggestion> deduped = <String, CitySuggestion>{};
+    for (final dynamic item in raw) {
+      if (item is! Map) {
+        continue;
+      }
+      final CitySuggestion c = _citySuggestionFromGeoItem(
+        Map<String, dynamic>.from(item),
       );
-    }).toList();
+      if (c.name.isEmpty) {
+        continue;
+      }
+      final String key =
+          '${c.lat.toStringAsFixed(4)}_${c.lon.toStringAsFixed(4)}';
+      deduped.putIfAbsent(key, () => c);
+    }
+    return deduped.values.toList();
+  }
 
-    suggestions.sort((CitySuggestion a, CitySuggestion b) =>
-        b.population.compareTo(a.population));
-    return suggestions;
+  static CitySuggestion _citySuggestionFromGeoItem(Map<String, dynamic> j) {
+    return CitySuggestion(
+      name: j['name']?.toString() ?? '',
+      country: j['country']?.toString() ?? '',
+      lat: (j['lat'] as num?)?.toDouble() ?? 0,
+      lon: (j['lon'] as num?)?.toDouble() ?? 0,
+      population: 0,
+      state: j['state']?.toString(),
+    );
   }
 }

@@ -63,7 +63,9 @@ class AppBinding extends Bindings {
     Get.lazyPut<CitySearchController>(
       () => CitySearchController(
         getCitySuggestions: Get.find<GetCitySuggestionsUseCase>(),
-        getWeatherByCity: Get.find<GetWeatherByCityUseCase>(),
+        getWeatherByCoordinates:
+            Get.find<GetWeatherByCoordinatesUseCase>(),
+        localPrefs: Get.find<LocalPrefsService>(),
       ),
       fenix: true,
     );
